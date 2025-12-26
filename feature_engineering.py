@@ -34,34 +34,28 @@ class PolymarketFeatureEngineering:
         if df.empty:
             return df
         
-        # Moving averages
         for window in [3, 6, 12, 24]:  # hours
             if 'close' in df.columns:
                 df[f'sma_{window}'] = df['close'].rolling(window=window).mean()
                 df[f'ema_{window}'] = df['close'].ewm(span=window).mean()
         
-        # Price momentum
         if 'close' in df.columns:
             df['momentum_1h'] = df['close'].pct_change(1)
             df['momentum_6h'] = df['close'].pct_change(6)
             df['momentum_24h'] = df['close'].pct_change(24)
         
-        # Volatility
         if 'close' in df.columns:
             df['volatility_6h'] = df['close'].rolling(window=6).std()
             df['volatility_24h'] = df['close'].rolling(window=24).std()
         
-        # Volume indicators
         if 'volume' in df.columns:
             df['volume_sma_6h'] = df['volume'].rolling(window=6).mean()
             df['volume_change'] = df['volume'].pct_change()
         
-        # Price range
         if 'high' in df.columns and 'low' in df.columns:
             df['price_range'] = df['high'] - df['low']
             df['price_range_pct'] = (df['high'] - df['low']) / df['close'] * 100
         
-        # RSI (Relative Strength Index)
         if 'close' in df.columns:
             delta = df['close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -69,7 +63,7 @@ class PolymarketFeatureEngineering:
             rs = gain / loss
             df['rsi'] = 100 - (100 / (1 + rs))
         
-        # Bollinger Bands
+        #bllinger Bands
         if 'close' in df.columns:
             sma_20 = df['close'].rolling(window=20).mean()
             std_20 = df['close'].rolling(window=20).std()
@@ -88,13 +82,11 @@ class PolymarketFeatureEngineering:
         
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         
-        # Extract time components
         df['hour'] = df['timestamp'].dt.hour
         df['day_of_week'] = df['timestamp'].dt.dayofweek
         df['day_of_month'] = df['timestamp'].dt.day
         df['is_weekend'] = (df['day_of_week'] >= 5).astype(int)
         
-        # Cyclical encoding for time features
         df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24)
         df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24)
         df['day_sin'] = np.sin(2 * np.pi * df['day_of_week'] / 7)
@@ -116,7 +108,6 @@ class PolymarketFeatureEngineering:
             'trades_per_hour': features.get('trades_per_hour', 0),
             'time_span_hours': features.get('time_span_hours', 0),
             
-            # Market metadata
             'num_tokens': len(market_info.get('tokens', [])),
             'is_active': int(market_info.get('active', False)),
             'is_closed': int(market_info.get('closed', False)),
@@ -163,16 +154,13 @@ class PolymarketFeatureEngineering:
         if 'close' not in timeseries_df.columns or timeseries_df.empty:
             return pd.Series()
         
-        # Future price change
         future_price = timeseries_df['close'].shift(-horizon)
         current_price = timeseries_df['close']
         
         price_change_pct = ((future_price - current_price) / current_price) * 100
         
-        # Binary target: will price increase by threshold%?
         target = (price_change_pct > threshold).astype(int)
         
-        # Also save continuous target for regression
         timeseries_df['target_price_change'] = price_change_pct
         timeseries_df['target_binary'] = target
         
@@ -188,32 +176,25 @@ class PolymarketFeatureEngineering:
         
         for dataset in datasets:
             try:
-                # Convert timeseries to DataFrame
                 timeseries = pd.DataFrame(dataset.get('timeseries', []))
                 
                 if timeseries.empty:
                     continue
                 
-                # Add technical indicators
                 timeseries = self.create_technical_indicators(timeseries)
                 
-                # Add time features
                 timeseries = self.create_time_features(timeseries)
                 
-                # Create target variable
                 self.create_target_variable(timeseries, horizon=prediction_horizon)
                 
-                # Add market-level features
                 market_features = self.create_market_features(dataset)
                 for key, value in market_features.items():
                     timeseries[f'market_{key}'] = value
                 
-                # Add orderbook features
                 orderbook_features = self.create_orderbook_features(dataset.get('orderbooks', {}))
                 for key, value in orderbook_features.items():
                     timeseries[f'ob_{key}'] = value
                 
-                # Add market identifier
                 timeseries['condition_id'] = dataset['market_info'].get('condition_id', 'unknown')
                 
                 all_samples.append(timeseries)
@@ -253,7 +234,6 @@ class PolymarketFeatureEngineering:
         df.to_csv(filepath, index=False)
         logger.info(f"Saved processed data to {filepath}")
         
-        # Save feature names
         feature_cols = self.get_feature_columns(df)
         feature_names_path = filepath.replace('.csv', '_features.txt')
         with open(feature_names_path, 'w') as f:
@@ -265,18 +245,14 @@ def main():
     """Main execution"""
     engineer = PolymarketFeatureEngineering()
     
-    # Load collected data
     datasets = engineer.load_data("polymarket_data/polymarket_training_data.json")
     
-    # Prepare training data
     logger.info("Engineering features...")
     training_df = engineer.prepare_training_data(datasets, prediction_horizon=6)
     
     if not training_df.empty:
-        # Save processed data
         engineer.save_processed_data(training_df)
         
-        # Print summary
         logger.info(f"\nDataset Summary:")
         logger.info(f"Total samples: {len(training_df)}")
         logger.info(f"Feature columns: {len(engineer.get_feature_columns(training_df))}")

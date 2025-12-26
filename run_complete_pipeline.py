@@ -1,6 +1,5 @@
 """
-Complete End-to-End Example
-Demonstrates the entire workflow from data collection to prediction
+data scraping pipeline for the model
 """
 
 import os
@@ -20,19 +19,15 @@ def main():
     logger.info("POLYMARKET PREDICTION PROJECT - COMPLETE PIPELINE")
     logger.info("="*80)
     
-    # Create data directory
     os.makedirs("polymarket_data", exist_ok=True)
     
-    # ========================================
-    # STEP 1: DATA COLLECTION
-    # ========================================
+#data collection
     logger.info("\n" + "="*80)
     logger.info("STEP 1: COLLECTING DATA")
     logger.info("="*80)
     
     collector = PolymarketDataCollector()
     
-    # Collect data for 10 markets (adjust as needed)
     datasets = collector.collect_multiple_markets(
         num_markets=10, 
         resample_freq='1H'
@@ -47,16 +42,13 @@ def main():
     
     logger.info(f"✓ Collected data for {len(datasets)} markets")
     
-    # ========================================
-    # STEP 2: FEATURE ENGINEERING
-    # ========================================
+
     logger.info("\n" + "="*80)
     logger.info("STEP 2: ENGINEERING FEATURES")
     logger.info("="*80)
     
     engineer = PolymarketFeatureEngineering()
     
-    # Prepare training data with 6-hour prediction horizon
     training_df = engineer.prepare_training_data(
         datasets, 
         prediction_horizon=6
@@ -66,37 +58,27 @@ def main():
         logger.error("Failed to create training data.")
         return
     
-    # Save processed data
     engineer.save_processed_data(training_df)
     
     logger.info(f"✓ Created {len(training_df)} training samples")
     logger.info(f"✓ Engineered {len(engineer.get_feature_columns(training_df))} features")
-    
-    # ========================================
-    # STEP 3: MODEL TRAINING
-    # ========================================
+
     logger.info("\n" + "="*80)
     logger.info("STEP 3: TRAINING MODEL")
     logger.info("="*80)
     
     predictor = PolymarketPredictor()
     
-    # Prepare features and target
     X, y = predictor.prepare_features_and_target(training_df)
     
-    # Split data
     data_splits = predictor.split_data(X, y, test_size=0.2, val_size=0.1)
     
-    # Scale features
     data_splits = predictor.scale_features(data_splits)
     
-    # Train and compare models
     results = predictor.compare_models(data_splits)
     
-    # Select best model
     best_model_name, best_model = predictor.select_best_model(results)
     
-    # Evaluate on test set
     test_metrics = predictor.evaluate_model(
         best_model,
         data_splits['X_test_scaled'],
@@ -104,7 +86,6 @@ def main():
         "Test"
     )
     
-    # Save model
     predictor.model = best_model
     predictor.save_model(best_model, model_name="best_model")
     
@@ -112,19 +93,15 @@ def main():
     logger.info(f"✓ Test accuracy: {test_metrics['accuracy']:.4f}")
     logger.info(f"✓ Test F1 score: {test_metrics['f1']:.4f}")
     
-    # ========================================
-    # STEP 4: VISUALIZATIONS
-    # ========================================
+
     logger.info("\n" + "="*80)
     logger.info("STEP 4: GENERATING VISUALIZATIONS")
     logger.info("="*80)
     
-    # Feature importance (if Random Forest)
     if best_model_name == 'Random Forest':
         predictor.plot_feature_importance()
         logger.info("✓ Feature importance plot saved")
     
-    # Confusion matrix
     predictor.plot_confusion_matrix(
         best_model,
         data_splits['X_test_scaled'],
@@ -132,9 +109,7 @@ def main():
     )
     logger.info("✓ Confusion matrix saved")
     
-    # ========================================
-    # SUMMARY
-    # ========================================
+
     logger.info("\n" + "="*80)
     logger.info("PIPELINE COMPLETE!")
     logger.info("="*80)

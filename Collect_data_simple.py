@@ -22,19 +22,15 @@ def create_sample_market_data(num_markets=10):
     datasets = []
     
     for i in range(num_markets):
-        # Generate sample price data
         timestamps = pd.date_range(end=datetime.now(), periods=200, freq='1H')
         
-        # Random walk price data between 0.3 and 0.7
         prices = np.random.randn(200).cumsum() * 0.02 + 0.5
         prices = np.clip(prices, 0.3, 0.7)
         
-        # Add some trend
         trend = np.linspace(0, 0.1 * np.random.choice([-1, 1]), 200)
         prices += trend
         prices = np.clip(prices, 0.2, 0.8)
         
-        # Generate OHLCV data
         timeseries = []
         for j, ts in enumerate(timestamps):
             price = prices[j]
@@ -55,7 +51,6 @@ def create_sample_market_data(num_markets=10):
                 'num_trades': int(volume / 100)
             })
         
-        # Create raw trades
         raw_trades = []
         for j in range(len(timestamps) // 2):
             raw_trades.append({
@@ -64,7 +59,6 @@ def create_sample_market_data(num_markets=10):
                 'size': float(np.random.randint(50, 500))
             })
         
-        # Market features
         features = {
             'total_trades': len(raw_trades),
             'total_volume': sum(t['volume'] for t in timeseries),
@@ -79,7 +73,6 @@ def create_sample_market_data(num_markets=10):
             'trades_per_hour': len(raw_trades) / 200
         }
         
-        # Market info
         market_info = {
             'id': f'sample_{i}',
             'condition_id': f'0x{i:064x}',
@@ -112,7 +105,6 @@ def create_sample_market_data(num_markets=10):
 def try_collect_real_data(num_markets=20):
     """Try to collect real data from Polymarket API"""
     
-    # Try different API endpoints
     endpoints_to_try = [
         "https://gamma-api.polymarket.com/events",
         "https://clob.polymarket.com/markets"
@@ -128,7 +120,6 @@ def try_collect_real_data(num_markets=20):
                 logger.info(f"Success! Got response from {endpoint}")
                 logger.info(f"Response type: {type(data)}")
                 
-                # Log the structure
                 if isinstance(data, list) and len(data) > 0:
                     logger.info(f"List with {len(data)} items")
                     logger.info(f"First item keys: {list(data[0].keys())[:10]}")
@@ -153,7 +144,6 @@ def main():
     logger.info("POLYMARKET DATA COLLECTION")
     logger.info("="*70)
     
-    # Try to get real data
     logger.info("\nAttempting to collect real data from Polymarket API...")
     real_data = try_collect_real_data()
     
@@ -165,17 +155,14 @@ def main():
         logger.warning("✗ Could not connect to Polymarket API")
         logger.info("Using sample data for demonstration...")
     
-    # Create sample data
     datasets = create_sample_market_data(num_markets=20)
     
-    # Save datasets
     filepath = "polymarket_data/polymarket_training_data.json"
     with open(filepath, 'w') as f:
         json.dump(datasets, f, indent=2)
     
     logger.info(f"\n✓ Saved {len(datasets)} datasets to {filepath}")
     
-    # Save summary
     summary_data = []
     for dataset in datasets:
         summary = {

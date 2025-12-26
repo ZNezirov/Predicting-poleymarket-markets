@@ -1,6 +1,5 @@
 """
-Real-time Prediction Script for Polymarket Markets
-Use trained model to predict price movements on new/live markets
+prediction live markets on Polymarket using a trained model
 """
 
 import requests
@@ -46,7 +45,7 @@ class PolymarketLivePredictor:
             resp.raise_for_status()
             markets = resp.json()
             
-            # Find specific market
+            #find specific market
             for market in markets:
                 if market.get('condition_id') == condition_id:
                     return market
@@ -96,14 +95,14 @@ class PolymarketLivePredictor:
         
         features = {}
         
-        # Basic statistics
+        # b asic statistics
         features['avg_price'] = trades_df['price'].mean()
         features['price_std'] = trades_df['price'].std()
         features['price_min'] = trades_df['price'].min()
         features['price_max'] = trades_df['price'].max()
         features['price_range'] = features['price_max'] - features['price_min']
         
-        # Volume
+        #volume of the trades
         if 'size' in trades_df:
             features['total_volume'] = trades_df['size'].sum()
             features['avg_volume'] = trades_df['size'].mean()
@@ -114,11 +113,11 @@ class PolymarketLivePredictor:
             features['recent_avg_price'] = recent_trades['price'].mean()
             features['recent_price_std'] = recent_trades['price'].std()
         
-        # Price momentum
+        #price momentum
         if len(trades_df) > 1:
             features['momentum_1h'] = (trades_df['price'].iloc[-1] - trades_df['price'].iloc[0]) / trades_df['price'].iloc[0]
         
-        # Moving averages (approximate)
+        # moving averages
         if len(trades_df) > 10:
             features['sma_10'] = trades_df['price'].tail(10).mean()
         if len(trades_df) > 50:
@@ -136,7 +135,6 @@ class PolymarketLivePredictor:
         # Create a DataFrame with all required features
         feature_dict = {name: 0 for name in self.feature_names}
         
-        # Fill in available features
         for key, value in market_features.items():
             if key in feature_dict:
                 feature_dict[key] = value
@@ -150,28 +148,22 @@ class PolymarketLivePredictor:
         
         logger.info(f"Analyzing market: {condition_id}")
         
-        # Get market data
         market = self.get_live_market(condition_id)
         if not market:
             return None
         
-        # Get recent trades
         trades_df = self.get_recent_trades(condition_id)
         if trades_df.empty:
             logger.error("No trade data available")
             return None
         
-        # Calculate features
         features = self.calculate_features_from_trades(trades_df)
         
-        # Add market metadata
         features['market_num_tokens'] = len(market.get('tokens', []))
         features['market_is_active'] = int(market.get('active', False))
         
-        # Prepare for prediction
         X = self.prepare_features_for_prediction(features)
         
-        # Make prediction
         X_scaled = self.scaler.transform(X)
         prediction = self.model.predict(X_scaled)[0]
         probability = self.model.predict_proba(X_scaled)[0][1]
@@ -219,10 +211,8 @@ class PolymarketLivePredictor:
             resp.raise_for_status()
             markets = resp.json()
             
-            # Filter active markets
             active_markets = [m for m in markets if m.get('active', False)]
             
-            # Sort by volume/liquidity
             active_markets.sort(key=lambda x: float(x.get('volume', 0)), reverse=True)
             
             condition_ids = [m['condition_id'] for m in active_markets[:limit]]
@@ -263,15 +253,15 @@ class PolymarketLivePredictor:
 def main():
     """Main execution"""
     
-    # Initialize predictor
+    #init predictor
     predictor = PolymarketLivePredictor()
     
-    # Option 1: Predict specific market
+    # optie 1: Predict specific market
     # condition_id = "your_condition_id_here"
     # result = predictor.predict_market(condition_id)
     # print(json.dumps(result, indent=2))
     
-    # Option 2: Predict top active markets
+    #optie 2: Predict top active markets
     logger.info("Finding top active markets...")
     condition_ids = predictor.get_top_markets_to_predict(limit=10)
     

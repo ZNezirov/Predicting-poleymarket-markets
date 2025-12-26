@@ -27,15 +27,12 @@ class ModelEvaluator:
                  scaler_path="polymarket_data/scaler.pkl",
                  data_path="polymarket_data/processed_training_data.csv"):
         
-        # Load model
         with open(model_path, 'rb') as f:
             self.model = pickle.load(f)
         
-        # Load scaler
         with open(scaler_path, 'rb') as f:
             self.scaler = pickle.load(f)
         
-        # Load data
         self.data = pd.read_csv(data_path)
         
         logger.info("✓ Model, scaler, and data loaded")
@@ -43,7 +40,6 @@ class ModelEvaluator:
     def prepare_test_data(self, test_size=0.2):
         """Prepare test set from data"""
         
-        # Exclude non-feature columns
         exclude_cols = ['target_binary', 'target_price_change', 'timestamp', 
                        'condition_id', 'open', 'high', 'low', 'close']
         
@@ -52,10 +48,8 @@ class ModelEvaluator:
         X = self.data[feature_cols].copy()
         y = self.data['target_binary'].copy()
         
-        # Handle NaN/inf
         X = X.replace([np.inf, -np.inf], np.nan).fillna(0)
         
-        # Use last 20% as test set (time-based split)
         split_idx = int(len(X) * (1 - test_size))
         
         X_train = X.iloc[:split_idx]
@@ -113,7 +107,7 @@ class ModelEvaluator:
         print(f"{dataset_name} Set Evaluation Results")
         print("="*70)
         
-        print(f"\n📊 Overall Performance:")
+        print(f"\n Overall Performance:")
         print(f"  Accuracy:     {metrics['accuracy']:.2%}")
         print(f"  Precision:    {metrics['precision']:.2%}")
         print(f"  Recall:       {metrics['recall']:.2%}")
@@ -121,7 +115,7 @@ class ModelEvaluator:
         print(f"  ROC AUC:      {metrics['roc_auc']:.4f}")
         print(f"  Specificity:  {metrics['specificity']:.2%}")
         
-        print(f"\n🎯 Confusion Matrix Breakdown:")
+        print(f"\n Confusion Matrix Breakdown:")
         print(f"  True Positives:  {metrics['true_positives']:4d}  (Correctly predicted UP)")
         print(f"  True Negatives:  {metrics['true_negatives']:4d}  (Correctly predicted DOWN)")
         print(f"  False Positives: {metrics['false_positives']:4d}  (Predicted UP, was DOWN)")
@@ -130,25 +124,25 @@ class ModelEvaluator:
         total = sum([metrics['true_positives'], metrics['true_negatives'], 
                      metrics['false_positives'], metrics['false_negatives']])
         
-        print(f"\n📈 Interpretation:")
+        print(f"\n Interpretation:")
         if metrics['accuracy'] > 0.65:
-            print(f"  ✅ EXCELLENT: Model accuracy is {metrics['accuracy']:.1%}")
+            print(f"   EXCELLENT: Model accuracy is {metrics['accuracy']:.1%}")
         elif metrics['accuracy'] > 0.60:
             print(f"  ✓ GOOD: Model accuracy is {metrics['accuracy']:.1%}")
         elif metrics['accuracy'] > 0.55:
             print(f"  → MODERATE: Model accuracy is {metrics['accuracy']:.1%}")
         else:
-            print(f"  ⚠ LOW: Model accuracy is {metrics['accuracy']:.1%}")
+            print(f"   LOW: Model accuracy is {metrics['accuracy']:.1%}")
         
         if metrics['precision'] > 0.70:
-            print(f"  ✅ When predicting UP, correct {metrics['precision']:.1%} of the time")
+            print(f"   When predicting UP, correct {metrics['precision']:.1%} of the time")
         else:
             print(f"  → When predicting UP, correct {metrics['precision']:.1%} of the time")
         
         if metrics['recall'] > 0.65:
-            print(f"  ✅ Catches {metrics['recall']:.1%} of actual UP movements")
+            print(f"   Catches {metrics['recall']:.1%} of actual UP movements")
         else:
-            print(f"  → Catches {metrics['recall']:.1%} of actual UP movements")
+            print(f"  Catches {metrics['recall']:.1%} of actual UP movements")
         
         print("="*70)
     
@@ -213,7 +207,6 @@ class ModelEvaluator:
         plt.title('Precision-Recall Curve', fontsize=16, fontweight='bold')
         plt.grid(True, alpha=0.3)
         
-        # Add F1 score line
         f1_scores = 2 * (precision * recall) / (precision + recall)
         best_f1_idx = np.argmax(f1_scores)
         plt.scatter(recall[best_f1_idx], precision[best_f1_idx], 
@@ -232,7 +225,6 @@ class ModelEvaluator:
         
         plt.figure(figsize=(12, 6))
         
-        # Separate by actual class
         proba_class_0 = y_pred_proba[y_true == 0]
         proba_class_1 = y_pred_proba[y_true == 1]
         
@@ -260,7 +252,6 @@ class ModelEvaluator:
         print("Performance by Confidence Level")
         print("="*70)
         
-        # Define confidence levels
         confidence_levels = {
             'Very High (>80%)': (y_pred_proba > 0.8) | (y_pred_proba < 0.2),
             'High (70-80%)': ((y_pred_proba >= 0.7) & (y_pred_proba <= 0.8)) | 
@@ -322,22 +313,16 @@ def main():
     print("="*70)
     
     try:
-        # Initialize evaluator
         evaluator = ModelEvaluator()
         
-        # Prepare test data
         X_train, X_test, y_train, y_test, feature_cols = evaluator.prepare_test_data()
         
-        # Evaluate on test set
         y_pred, y_pred_proba, metrics = evaluator.evaluate_on_test_set(X_test, y_test)
         
-        # Print comprehensive report
         evaluator.print_metrics_report(metrics, "Test")
         
-        # Analyze by confidence
         evaluator.analyze_by_confidence(y_test, y_pred, y_pred_proba)
         
-        # Test on recent data
         evaluator.test_on_recent_data(X_test, y_test, y_pred, y_pred_proba, n_recent=50)
         
         # Create all visualizations
@@ -350,22 +335,22 @@ def main():
         evaluator.plot_precision_recall_curve(y_test, y_pred_proba)
         evaluator.plot_prediction_distribution(y_test, y_pred_proba)
         
-        # Save detailed analysis
+        
         results_df = evaluator.save_predictions_analysis(X_test, y_test, y_pred, y_pred_proba)
         
         print("\n" + "="*70)
         print("EVALUATION COMPLETE!")
         print("="*70)
         print("\nGenerated Files:")
-        print("  📊 polymarket_data/confusion_matrix_detailed.png")
-        print("  📈 polymarket_data/roc_curve.png")
-        print("  📉 polymarket_data/precision_recall_curve.png")
-        print("  📊 polymarket_data/prediction_distribution.png")
-        print("  📄 polymarket_data/predictions_analysis.csv")
+        print("   polymarket_data/confusion_matrix_detailed.png")
+        print("   polymarket_data/roc_curve.png")
+        print("   polymarket_data/precision_recall_curve.png")
+        print("   polymarket_data/prediction_distribution.png")
+        print("   polymarket_data/predictions_analysis.csv")
         
         print("\n✅ Model evaluation complete!")
         
-        # Final summary
+        #-- model summary
         print("\n" + "="*70)
         print("QUICK SUMMARY")
         print("="*70)
@@ -377,7 +362,7 @@ def main():
         print("="*70)
         
     except FileNotFoundError as e:
-        print("\n❌ ERROR: Could not find required files.")
+        print("\n ERROR: Could not find required files.")
         print("Make sure you've run these scripts first:")
         print("  1. python collect_data_simple.py")
         print("  2. python feature_engineering.py")
@@ -385,7 +370,7 @@ def main():
         print(f"\nMissing file: {e}")
     
     except Exception as e:
-        print(f"\n❌ ERROR: {e}")
+        print(f"\n ERROR: {e}")
         raise
 
 

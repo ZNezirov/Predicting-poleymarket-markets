@@ -49,7 +49,6 @@ class PolymarketDataCollector:
         except Exception as e:
             logger.warning(f"CLOB API failed: {e}, trying Gamma API...")
         
-        # Fallback to Gamma API
         try:
             url = f"{self.gamma_base}/markets"
             resp = requests.get(url, params={'limit': limit, 'active': 'true'}, timeout=30)
@@ -129,15 +128,12 @@ class PolymarketDataCollector:
         
         df = pd.DataFrame(trades)
         
-        # Convert timestamp to datetime
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
         df = df.sort_values('timestamp')
         
-        # Extract price (usually in the 'price' field)
         if 'price' in df.columns:
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
         
-        # Calculate volume metrics
         if 'size' in df.columns:
             df['size'] = pd.to_numeric(df['size'], errors='coerce')
             df['cumulative_volume'] = df['size'].cumsum()
@@ -159,12 +155,10 @@ class PolymarketDataCollector:
             'price_range': (trades_df['price'].max() - trades_df['price'].min()) if 'price' in trades_df else 0,
         }
         
-        # Calculate price momentum
         if 'price' in trades_df and len(trades_df) > 1:
             features['price_change'] = trades_df['price'].iloc[-1] - trades_df['price'].iloc[0]
             features['price_change_pct'] = (features['price_change'] / trades_df['price'].iloc[0]) * 100
         
-        # Calculate time-based features
         if 'timestamp' in trades_df:
             features['time_span_hours'] = (trades_df['timestamp'].max() - trades_df['timestamp'].min()).total_seconds() / 3600
             features['trades_per_hour'] = features['total_trades'] / max(features['time_span_hours'], 1)
@@ -194,7 +188,6 @@ class PolymarketDataCollector:
             resampled['volume'] = trades_df['size'].resample(freq).sum()
             resampled['num_trades'] = trades_df['size'].resample(freq).count()
         
-        # Forward fill missing values
         resampled = resampled.fillna(method='ffill')
         
         return resampled.reset_index()
@@ -206,27 +199,23 @@ class PolymarketDataCollector:
         
         logger.info(f"Collecting data for: {question[:70]}")
         
-        # Get trades
         trades_df = self.get_market_prices_timeseries(condition_id)
         
         if trades_df.empty:
             logger.warning(f"No trades found for {condition_id}")
             return None
         
-        # Calculate features
         features = self.calculate_market_features(trades_df)
         
-        # Resample to time series
         timeseries = self.resample_to_timeseries(trades_df, freq=resample_freq)
         
-        # Get current orderbook
         tokens = market.get('tokens', [])
         orderbooks = {}
         for token in tokens:
             token_id = token.get('token_id')
             if token_id:
                 orderbooks[token_id] = self.get_orderbook(token_id)
-                time.sleep(0.5)  # Rate limiting
+                time.sleep(0.5)
         
         dataset = {
             'market_info': market,
@@ -252,7 +241,6 @@ class PolymarketDataCollector:
                 if dataset:
                     datasets.append(dataset)
                 
-                # Rate limiting
                 time.sleep(1)
                 
             except Exception as e:
@@ -273,7 +261,6 @@ class PolymarketDataCollector:
         
         logger.info(f"Saved {len(datasets)} datasets to {filepath}")
         
-        # Also save as CSV for easy inspection
         csv_filepath = filepath.replace('.json', '_summary.csv')
         summary_data = []
         for dataset in datasets:
@@ -295,15 +282,12 @@ def main():
     """Main execution function"""
     collector = PolymarketDataCollector()
     
-    # Try to collect data
     logger.info("Starting data collection...")
     datasets = collector.collect_multiple_markets(num_markets=20, resample_freq='1H')
     
-    # If no data, try event-based approach
     if not datasets:
         logger.info("Trying event-based collection...")
         
-        # List of popular/known event slugs (update these with current events)
         event_slugs = [
             "presidential-election-winner-2024",
             "will-biden-be-the-2024-democratic-nominee",
