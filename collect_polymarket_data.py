@@ -25,16 +25,69 @@ class PolymarketDataCollector:
         
     def get_active_markets(self, limit: int = 100) -> List[Dict]:
         """Fetch active markets from Polymarket"""
+        
+        # Try CLOB API first
         url = f"{self.clob_base}/markets"
         try:
             resp = requests.get(url, timeout=30)
             resp.raise_for_status()
-            markets = resp.json()
-            logger.info(f"Retrieved {len(markets)} markets")
+            data = resp.json()
+            
+            # Handle different response formats
+            if isinstance(data, list):
+                markets = data
+            elif isinstance(data, dict):
+                markets = data.get('data', data.get('markets', []))
+                if not isinstance(markets, list):
+                    markets = list(data.values()) if data else []
+            else:
+                markets = []
+            
+            if markets:
+                logger.info(f"Retrieved {len(markets)} markets from CLOB API")
+                return markets[:limit]
+        except Exception as e:
+            logger.warning(f"CLOB API failed: {e}, trying Gamma API...")
+        
+        # Fallback to Gamma API
+        try:
+            url = f"{self.gamma_base}/markets"
+            resp = requests.get(url, params={'limit': limit, 'active': 'true'}, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            
+            if isinstance(data, list):
+                markets = data
+            elif isinstance(data, dict):
+                markets = data.get('data', data.get('markets', []))
+            else:
+                markets = []
+            
+            logger.info(f"Retrieved {len(markets)} markets from Gamma API")
             return markets[:limit]
         except Exception as e:
-            logger.error(f"Error fetching markets: {e}")
+            logger.error(f"Both APIs failed. Error: {e}")
             return []
+    
+    def get_markets_by_events(self, event_slugs: List[str]) -> List[Dict]:
+        """Fetch markets from specific events (more reliable)"""
+        all_markets = []
+        
+        for slug in event_slugs:
+            try:
+                url = f"{self.gamma_base}/events/slug/{slug}"
+                resp = requests.get(url, timeout=30)
+                resp.raise_for_status()
+                event = resp.json()
+                
+                markets = event.get('markets', [])
+                all_markets.extend(markets)
+                logger.info(f"Retrieved {len(markets)} markets from event: {slug}")
+                
+            except Exception as e:
+                logger.warning(f"Could not get event {slug}: {e}")
+        
+        return all_markets
     
     def get_market_trades(self, condition_id: str, limit: int = 1000) -> List[Dict]:
         """Fetch historical trades for a specific market"""
@@ -242,16 +295,49 @@ def main():
     """Main execution function"""
     collector = PolymarketDataCollector()
     
-    # Collect data for 20 markets with hourly resampling
+    # Try to collect data
     logger.info("Starting data collection...")
     datasets = collector.collect_multiple_markets(num_markets=20, resample_freq='1H')
+    
+    # If no data, try event-based approach
+    if not datasets:
+        logger.info("Trying event-based collection...")
+        
+        # List of popular/known event slugs (update these with current events)
+        event_slugs = [
+            "presidential-election-winner-2024",
+            "will-biden-be-the-2024-democratic-nominee",
+            "federal-reserve-interest-rate-decision",
+            "ukraine-russia-conflict",
+            "2024-olympics"
+        ]
+        
+        markets = collector.get_markets_by_events(event_slugs)
+        
+        if markets:
+            logger.info(f"Found {len(markets)} markets from events")
+            datasets = []
+            
+            for i, market in enumerate(markets[:20]):  # Limit to 20
+                logger.info(f"Processing market {i+1}/{min(len(markets), 20)}")
+                try:
+                    dataset = collector.collect_market_dataset(market, resample_freq='1H')
+                    if dataset:
+                        datasets.append(dataset)
+                    time.sleep(1)
+                except Exception as e:
+                    logger.error(f"Error processing market: {e}")
+                    continue
     
     if datasets:
         filepath = collector.save_datasets(datasets)
         logger.info(f"Data collection complete! {len(datasets)} markets saved.")
         logger.info(f"Data saved to: {filepath}")
     else:
-        logger.error("No data collected!")
+        logger.error("No data collected! Please check:")
+        logger.error("1. Internet connection")
+        logger.error("2. Polymarket API status")
+        logger.error("3. Try updating event_slugs with current events from polymarket.com")
 
 
 if __name__ == "__main__":
